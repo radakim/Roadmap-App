@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Life Roadmap — Daily & Study Planner",
+    "slug": "huawei-roadmap",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0f172a",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rada.huaweiroadmap"
+    },
+    "android": {
+      "package": "com.rada.huaweiroadmap",
+      "backgroundColor": "#0f172a"
+    },
+    "plugins": [
+      "expo-asset",
+      "expo-status-bar"
+    ]
+  }
+}
