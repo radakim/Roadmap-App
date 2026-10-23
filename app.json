@@ -4,19 +4,55 @@
     "slug": "huawei-roadmap",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#0f172a",
+    "backgroundColor": "#070b14",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#070b14"
+    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.rada.huaweiroadmap"
+      "bundleIdentifier": "com.rada.huaweiroadmap",
+      "icon": "./assets/icon.png"
     },
     "android": {
       "package": "com.rada.huaweiroadmap",
-      "backgroundColor": "#0f172a"
+      "backgroundColor": "#070b14",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#070b14"
+      },
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-asset",
-      "expo-status-bar"
-    ]
+      "expo-status-bar",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#10b981",
+          "sounds": [],
+          "androidMode": "default",
+          "androidCollapsedTitle": "Life Roadmap"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f195a78e-b358-40f3-99e6-ac957a4e51ab"
+      }
+    }
   }
 }

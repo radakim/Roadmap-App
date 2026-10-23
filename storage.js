@@ -16,7 +16,21 @@ export function getInitialAppState() {
     roadmaps: [huawei, fullstack, habits],
     syncUrl: '',
     streak: { count: 0, lastDate: '' },
-    reminder: { enabled: true, time: '20:00' }
+    reminder: { enabled: true, time: '20:00' },
+    // Timer state — persisted so closing the app doesn't lose the session
+    timerState: {
+      activeMode: 'learn',   // label string
+      timeLeft: 20 * 60,     // seconds
+      isRunning: false,      // always paused on restore for safety
+      activeTaskId: null     // id of the linked task, or null
+    },
+    // AI Configuration (Google Gemini + OpenAI)
+    aiConfig: {
+      provider: 'gemini',
+      apiKey: '',
+      model: 'gemini-1.5-flash',
+      temperature: 0.7
+    }
   };
 }
 
@@ -27,6 +41,16 @@ export async function loadAppState() {
     if (rawV2) {
       const parsed = JSON.parse(rawV2);
       if (parsed && Array.isArray(parsed.roadmaps) && parsed.roadmaps.length > 0) {
+        if (!parsed.aiConfig) {
+          parsed.aiConfig = {
+            provider: 'gemini',
+            apiKey: '',
+            model: 'gemini-1.5-flash',
+            temperature: 0.7
+          };
+        } else if (!parsed.aiConfig.provider) {
+          parsed.aiConfig.provider = parsed.aiConfig.apiKey?.startsWith('sk-') ? 'openai' : 'gemini';
+        }
         return parsed;
       }
     }
