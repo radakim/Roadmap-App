@@ -93,36 +93,133 @@ Apple enforces security signing for iOS apps. Here are the 3 ways to deploy to a
 
 ---
 
-### Method 2: Install over USB via Mac & Xcode (Free Apple ID)
-*(Requires a Mac with Xcode)*
+### Method 2: Build & Install via Mac & Xcode (Free Apple ID)
 
-1. Navigate to your project and generate the iOS native workspace:
-   ```bash
-   npx expo prebuild --platform ios --clean
-   ```
-2. Open the Xcode project:
-   ```bash
-   open ios/HuaweiRoadmap.xcworkspace
-   ```
-3. In Xcode:
-   * Select your project in the sidebar → go to **Signing & Capabilities**.
-   * Check **"Automatically manage signing"**.
-   * Under **Team**, sign in with your free personal Apple ID.
-4. Connect your iPhone via USB:
-   * On your iPhone: Go to **Settings → Privacy & Security → Developer Mode** and turn it **ON** (phone will restart).
-   * In Xcode: Select your connected iPhone from the top target bar.
-   * Press the **▶ Run** button.
-5. First launch on iPhone:
-   * Go to **Settings → General → VPN & Device Management** → Tap your Apple ID and tap **Trust**.
-*(Free Apple ID builds can be renewed anytime by re-running from Xcode).*
+#### Prerequisites
+| Requirement | Minimum Version | Check Command |
+| :--- | :--- | :--- |
+| **macOS** | Ventura 13+ | `sw_vers` |
+| **Xcode** | 15+ (full app, not just CLI Tools) | `xcodebuild -version` |
+| **Node.js** | v22+ (v18 causes TypeScript stripping errors) | `node -v` |
+| **CocoaPods** | 1.15+ | `pod --version` |
+| **Ruby** | 3.x (via rbenv or system) | `ruby -v` |
+
+> [!IMPORTANT]
+> **Node.js v22+ is required.** Older versions (v18, v20) will fail during prebuild with `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`. Use `nvm` to switch:
+> ```bash
+> nvm install 22
+> nvm use 22
+> ```
+
+#### Step 1: Environment Setup (One-Time)
+
+```bash
+# 1a. Point xcode-select to the full Xcode app (not just Command Line Tools)
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+# 1b. Fix UTF-8 encoding for CocoaPods (prevents Unicode errors)
+echo 'export LANG=en_US.UTF-8' >> ~/.zshrc
+source ~/.zshrc
+
+# 1c. Switch to Node 22+ via nvm
+nvm use 22
+```
+
+#### Step 2: Clean Install & Prebuild
+
+```bash
+# Navigate to the project root
+cd /Users/kimrada/Desktop/ProjectApp/Roadmap-App
+
+# 2a. Clean previous builds and reinstall dependencies
+rm -rf node_modules ios package-lock.json
+npm install
+
+# 2b. Generate the native iOS project
+npx expo prebuild --platform ios --clean
+```
+
+> [!NOTE]
+> When prompted *"Continue with uncommitted changes?"*, press **Y** to proceed.
+
+#### Step 3: Install CocoaPods Dependencies
+
+If `pod install` fails during prebuild (common on fresh setups), run it manually:
+
+```bash
+cd ios
+LANG=en_US.UTF-8 pod install
+cd ..
+```
+
+#### Step 4: Disable Script Sandboxing
+
+Xcode's User Script Sandboxing blocks Expo/React Native build scripts. Disable it:
+
+```bash
+# Disable in the main project
+sed -i '' 's/ENABLE_USER_SCRIPT_SANDBOXING = YES;/ENABLE_USER_SCRIPT_SANDBOXING = NO;/g' \
+  ios/LifeRoadmapDailyStudyPlanner.xcodeproj/project.pbxproj
+
+# Disable in the Pods project
+sed -i '' 's/ENABLE_USER_SCRIPT_SANDBOXING = YES;/ENABLE_USER_SCRIPT_SANDBOXING = NO;/g' \
+  ios/Pods/Pods.xcodeproj/project.pbxproj
+```
+
+#### Step 5: Open in Xcode & Configure Signing
+
+```bash
+open ios/LifeRoadmapDailyStudyPlanner.xcworkspace
+```
+
+In Xcode:
+1. Select the **LifeRoadmapDailyStudyPlanner** project in the sidebar.
+2. Go to **Signing & Capabilities** tab.
+3. Check **"Automatically manage signing"**.
+4. Under **Team**, sign in with your free personal Apple ID.
+5. If needed, update the **Bundle Identifier** to something unique (e.g., `com.yourname.liferoadmap`).
+
+#### Step 6: Start Metro Bundler & Run
+
+```bash
+# In a separate terminal window — start the JS bundler:
+npx expo start --dev-client
+```
+
+In Xcode:
+1. Connect your iPhone via **USB cable**.
+2. On your iPhone: Go to **Settings → Privacy & Security → Developer Mode** and turn it **ON** (phone will restart).
+3. In Xcode: Select your connected iPhone from the device dropdown at the top.
+4. Press **▶ Run** (`Cmd + R`) to build and deploy to your device.
+
+#### Step 7: Trust the Developer Certificate (First Launch Only)
+
+On your iPhone:
+1. Go to **Settings → General → VPN & Device Management**.
+2. Tap your Apple ID under "Developer App".
+3. Tap **Trust** to allow the app to run.
+
+> [!TIP]
+> Free Apple ID builds expire after **7 days**. Simply re-run from Xcode (`Cmd + R`) to reinstall. No data is lost.
+
+#### Troubleshooting
+
+| Error | Cause | Fix |
+| :--- | :--- | :--- |
+| `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` | Node.js < v22 | `nvm use 22` |
+| `xcodebuild requires Xcode` | xcode-select points to CLI Tools | `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` |
+| `Encoding::CompatibilityError` (CocoaPods) | Terminal not using UTF-8 | `export LANG=en_US.UTF-8` (add to `~/.zshrc`) |
+| `Sandbox: deny file-write-create ip.txt` | User Script Sandboxing enabled | Set `ENABLE_USER_SCRIPT_SANDBOXING = NO` (see Step 4) |
+| `No script URL provided` | Metro bundler not running | Run `npx expo start --dev-client` in a separate terminal |
+| `PluginError: expo-status-bar` | Listed in `plugins` but isn't a config plugin | Remove `"expo-status-bar"` from `plugins` array in `app.json` |
 
 ---
 
 ### Method 3: Deploy to TestFlight or App Store (EAS Cloud)
 *(Requires a paid Apple Developer Account — $99/year)*
 
-```powershell
-cd "c:\roadmap app\huawei-roadmap-android\huawei-roadmap"
+```bash
+cd /Users/kimrada/Desktop/ProjectApp/Roadmap-App
 
 # Build for TestFlight internal testing:
 eas build -p ios --profile production
