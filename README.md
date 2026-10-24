@@ -8,9 +8,9 @@ A full-featured personal roadmap, habit, and daily life planner built with **Rea
 
 You do **not** need to compile an APK or IPA to test your app. You can test live on your phone in 30 seconds:
 
-```powershell
-# 1. Open PowerShell and navigate into the project folder:
-cd "c:\roadmap app\huawei-roadmap-android\huawei-roadmap"
+```bash
+# 1. Navigate into the project folder:
+cd /Users/kimrada/Desktop/ProjectApp/Roadmap-App
 
 # 2. Start the Metro bundler with cleared cache:
 npx expo start -c
@@ -34,9 +34,9 @@ npx expo start -c
 ### Method 1: Build a Standalone `.apk` in the Cloud (EAS Build - Recommended)
 No Android Studio or heavy tools required. EAS compiles the `.apk` in the cloud for free:
 
-```powershell
+```bash
 # Step 1: Ensure you are in the project folder
-cd "c:\roadmap app\huawei-roadmap-android\huawei-roadmap"
+cd /Users/kimrada/Desktop/ProjectApp/Roadmap-App
 
 # Step 2: Install EAS CLI globally (if not installed)
 npm install -g eas-cli
@@ -56,8 +56,8 @@ eas build -p android --profile preview
 ### Method 2: Build APK Locally on your Windows PC (Offline)
 *(Requires JDK 17 and Android Studio / Android SDK installed)*
 
-```powershell
-cd "c:\roadmap app\huawei-roadmap-android\huawei-roadmap"
+```bash
+cd /Users/kimrada/Desktop/ProjectApp/Roadmap-App
 
 # 1. Generate the native android project
 npx expo prebuild --platform android --clean
@@ -74,8 +74,8 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 ---
 
 ### Method 3: Deploy to Google Play Store (Production)
-```powershell
-cd "c:\roadmap app\huawei-roadmap-android\huawei-roadmap"
+```bash
+cd /Users/kimrada/Desktop/ProjectApp/Roadmap-App
 eas build -p android --profile production
 ```
 * This generates an Android App Bundle (`.aab`) optimized for upload to the **Google Play Console**.
@@ -210,6 +210,7 @@ On your iPhone:
 | `xcodebuild requires Xcode` | xcode-select points to CLI Tools | `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` |
 | `Encoding::CompatibilityError` (CocoaPods) | Terminal not using UTF-8 | `export LANG=en_US.UTF-8` (add to `~/.zshrc`) |
 | `Sandbox: deny file-write-create ip.txt` | User Script Sandboxing enabled | Set `ENABLE_USER_SCRIPT_SANDBOXING = NO` (see Step 4) |
+| `Command PhaseScriptExecution failed` (Release build) | Xcode using system Node 18 instead of Node 22 | Set Node 22 path in `ios/.xcode.env.local`: `echo "export NODE_BINARY=$(which node)" > ios/.xcode.env.local` |
 | `No script URL provided` | Metro bundler not running | Run `npx expo start --dev-client` in a separate terminal |
 | `PluginError: expo-status-bar` | Listed in `plugins` but isn't a config plugin | Remove `"expo-status-bar"` from `plugins` array in `app.json` |
 
@@ -356,8 +357,8 @@ You do **not** need expensive recurring subscriptions. OpenAI uses pay-as-you-go
 
 ## 📁 Architecture & File Overview
 
-- [`aiService.js`](file:///c:/roadmap%20app/huawei-roadmap-android/huawei-roadmap/aiService.js): Core multi-provider AI engine (Gemini & OpenAI) implementing the deep 4-part curriculum prompt, reference document grounding, and eNSP lab templates.
-- [`App.js`](file:///c:/roadmap%20app/huawei-roadmap-android/huawei-roadmap/App.js): Complete UI integration with DocumentPicker file importer, reference document hub, 4-part lesson reader, interactive eNSP lab view with troubleshooting cards, and Pomodoro timer task importer.
-- [`storage.js`](file:///c:/roadmap%20app/huawei-roadmap-android/huawei-roadmap/storage.js): Added persistent `aiConfig` state for API keys and multi-provider selection.
-- [`README.md`](file:///c:/roadmap%20app/huawei-roadmap-android/huawei-roadmap/README.md): Complete documentation for AI features, setup guides, and the 4-Part Daily Learning System.
+- [`aiService.js`](file:///Users/kimrada/Desktop/ProjectApp/Roadmap-App/aiService.js): Core multi-provider AI engine (Gemini & OpenAI) implementing the deep 4-part curriculum prompt, reference document grounding, and eNSP lab templates.
+- [`App.js`](file:///Users/kimrada/Desktop/ProjectApp/Roadmap-App/App.js): Complete UI integration with DocumentPicker file importer, reference document hub, 4-part lesson reader, interactive eNSP lab view with troubleshooting cards, and Pomodoro timer task importer.
+- [`storage.js`](file:///Users/kimrada/Desktop/ProjectApp/Roadmap-App/storage.js): Added persistent `aiConfig` state for API keys and multi-provider selection.
+- [`README.md`](file:///Users/kimrada/Desktop/ProjectApp/Roadmap-App/README.md): Complete documentation for AI features, setup guides, and the 4-Part Daily Learning System.
 
