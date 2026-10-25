@@ -29,6 +29,26 @@ npx expo start -c
 
 ---
 
+## 💻 Web Version (Windows / Mac browser)
+
+The same code runs in any browser via Expo Web (react-native-web). Native-only
+modules have browser versions picked automatically by Metro: `notifications.web.js`
+(browser notifications), `shareUtils.web.js` (clipboard + .docx download), and
+`webAlert.js` (dialogs). Requires **Node 20+**.
+
+```bash
+npm run web          # dev server -> http://localhost:8081
+npm run build:web    # static site in ./dist (deploy to Vercel / Netlify / GitHub Pages)
+npx serve dist       # preview the built site locally
+```
+
+Notes:
+* Data is saved in the browser's local storage, separately per browser/device.
+  Use **Settings → Backup & Restore** to move roadmaps between phone and laptop.
+* Study reminders only fire while the app tab is open.
+
+---
+
 ## 🤖 Guide to Deploy & Install on Android
 
 ### Method 1: Build a Standalone `.apk` in the Cloud (EAS Build - Recommended)

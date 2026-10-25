@@ -1235,9 +1235,12 @@ export default function App() {
         return;
       }
 
-      const content = await FileSystem.readAsStringAsync(asset.uri, {
-        encoding: FileSystem.EncodingType.UTF8
-      });
+      // Web: the picker returns a blob: URI, which expo-file-system cannot read
+      const content = Platform.OS === 'web'
+        ? await (asset.file ? asset.file.text() : fetch(asset.uri).then((r) => r.text()))
+        : await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.UTF8
+        });
       // eslint-disable-next-line no-control-regex
       const binaryChars = (content.slice(0, 4000).match(/[\u0000-\u0008\u000E-\u001F�]/g) || []).length;
       if (binaryChars > 20) {

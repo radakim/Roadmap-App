@@ -33,7 +33,13 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single",
+      "name": "AI Roadmap",
+      "shortName": "Roadmap",
+      "themeColor": "#070b14",
+      "backgroundColor": "#070b14"
     },
     "plugins": [
       "expo-asset",
