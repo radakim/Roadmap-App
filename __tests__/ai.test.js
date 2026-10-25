@@ -7,6 +7,7 @@ import {
   generateRoadmapWithAI,
   validateApiKey,
   normalizeModel,
+  detectProvider,
   normalizePractice
 } from '../aiService';
 import { buildHuaweiRoadmap, buildFullStackRoadmap } from '../templates';
@@ -65,12 +66,8 @@ function mockFetch(reply) {
   });
   return calls;
 }
-const geminiText = (text, finishReason = 'STOP') => ({ candidates: [{ content: { parts: [{ text }] }, finishReason }] });
-const openaiText = (text) => ({ choices: [{ message: { content: text }, finish_reason: 'stop' }] });
-const promptOf = (call) =>
-  call.body.system_instruction
-    ? { system: call.body.system_instruction.parts[0].text, user: call.body.contents[0].parts[0].text }
-    : { system: call.body.messages[0].content, user: call.body.messages[1].content };
+const openaiText = (text, finishReason = 'stop') => ({ choices: [{ message: { content: text }, finish_reason: finishReason }] });
+const promptOf = (call) => ({ system: call.body.messages[0].content, user: call.body.messages[1].content });
 
 afterEach(() => {
   delete global.fetch;
@@ -169,20 +166,22 @@ describe('practice prompts', () => {
 });
 
 describe('live generation with mocked providers', () => {
-  test('Gemini lesson request: key in header (not URL), correct context, metadata saved', async () => {
-    const calls = mockFetch(geminiText('# Day 27 — Kubernetes Deployments\nContent'));
+  test('DeepSeek lesson request: bearer key, correct context, metadata saved', async () => {
+    const calls = mockFetch(openaiText('# Day 27 — Kubernetes Deployments\nContent'));
     const lesson = await generateLessonContentWithAI({
       ...devopsCtx,
-      apiKey: 'AIzaSyTESTKEY',
-      provider: 'gemini',
-      model: 'gemini-1.5-flash', // retired id stored by older versions
+      apiKey: 'sk-deepseektestkey',
+      provider: 'gemini', // provider stored by older versions migrates to DeepSeek
+      model: 'gemini-2.5-flash',
       language: 'en',
       customInstructions: 'Focus on kubectl rollout'
     });
     expect(calls).toHaveLength(1);
-    expect(calls[0].url).not.toContain('AIzaSyTESTKEY');
-    expect(calls[0].url).toContain('/models/gemini-2.5-flash:generateContent');
-    expect(calls[0].opts.headers['x-goog-api-key']).toBe('AIzaSyTESTKEY');
+    expect(calls[0].url).toBe('https://api.deepseek.com/chat/completions');
+    expect(calls[0].url).not.toContain('sk-deepseektestkey');
+    expect(calls[0].opts.headers.Authorization).toBe('Bearer sk-deepseektestkey');
+    expect(calls[0].body.model).toBe('deepseek-chat');
+    expect(calls[0].body.max_tokens).toBe(8192);
     const p = promptOf(calls[0]);
     expect(p.user).toContain('Kubernetes Deployments & Rolling Updates');
     expect(p.user).toContain('Focus on kubectl rollout');
@@ -190,9 +189,9 @@ describe('live generation with mocked providers', () => {
     expect(lesson).toMatchObject({ day: 27, type: 'ai', language: 'en', customInstructions: 'Focus on kubectl rollout', subject: 'devops' });
   });
 
-  test('truncated Gemini output is flagged instead of silently cut', async () => {
-    mockFetch(geminiText('partial lesson', 'MAX_TOKENS'));
-    const lesson = await generateLessonContentWithAI({ ...devopsCtx, apiKey: 'AIzaSyK', provider: 'gemini' });
+  test('truncated DeepSeek output is flagged instead of silently cut', async () => {
+    mockFetch(openaiText('partial lesson', 'length'));
+    const lesson = await generateLessonContentWithAI({ ...devopsCtx, apiKey: 'sk-k', provider: 'deepseek' });
     expect(lesson.content).toMatch(/length limit/);
   });
 
@@ -224,9 +223,9 @@ describe('live generation with mocked providers', () => {
       ],
       tasks: [{ title: 'Guided practice', dur: '30 mins', priority: 'Urgent' }]
     };
-    const calls = mockFetch(geminiText('```json\n' + JSON.stringify(aiJson) + '\n```'));
-    const practice = await generatePracticeAndQuizWithAI({ ...devopsCtx, apiKey: 'AIzaSyK', provider: 'gemini', customInstructions: 'Only 2 questions' });
-    expect(calls[0].body.generationConfig.responseMimeType).toBe('application/json');
+    const calls = mockFetch(openaiText('```json\n' + JSON.stringify(aiJson) + '\n```'));
+    const practice = await generatePracticeAndQuizWithAI({ ...devopsCtx, apiKey: 'sk-k', provider: 'deepseek', customInstructions: 'Only 2 questions' });
+    expect(calls[0].body.response_format).toEqual({ type: 'json_object' });
     expect(promptOf(calls[0]).user).toContain('Only 2 questions');
     expect(practice.lab.environment).toBe('kind cluster');
     expect(practice.quiz).toHaveLength(2);
@@ -267,15 +266,15 @@ describe('live generation with mocked providers', () => {
 
   test('provider errors surface a readable message', async () => {
     global.fetch = jest.fn(async () => ({ ok: false, status: 404, json: async () => ({ error: { message: 'models/x is not found' } }) }));
-    await expect(generateLessonContentWithAI({ ...devopsCtx, apiKey: 'AIzaSyK', provider: 'gemini' })).rejects.toThrow('models/x is not found');
+    await expect(generateLessonContentWithAI({ ...devopsCtx, apiKey: 'sk-k', provider: 'deepseek' })).rejects.toThrow('models/x is not found');
   });
 
   test('network failures and key validation use the selected language', async () => {
     global.fetch = jest.fn(async () => { throw new TypeError('Network request failed'); });
-    const r = await validateApiKey('AIzaSyK', 'gemini', 'zh');
+    const r = await validateApiKey('sk-k', 'deepseek', 'zh');
     expect(r.valid).toBe(false);
     expect(r.error).toBe('网络请求失败，请检查网络连接。');
-    expect((await validateApiKey('', 'gemini', 'en')).error).toBe('Please enter an API Key.');
+    expect((await validateApiKey('', 'deepseek', 'en')).error).toBe('Please enter an API Key.');
   });
 });
 
@@ -304,12 +303,25 @@ describe('demo mode (no API key) follows the selected day instead of a fixed Hua
 });
 
 describe('model normalization', () => {
-  test('retired Gemini ids are migrated; custom ids kept', () => {
-    expect(normalizeModel('gemini', 'gemini-1.5-flash')).toBe('gemini-2.5-flash');
-    expect(normalizeModel('gemini', 'gemini-1.5-pro')).toBe('gemini-2.5-flash');
-    expect(normalizeModel('gemini', 'gemini-2.5-pro')).toBe('gemini-2.5-pro');
-    expect(normalizeModel('gemini', 'gemini-3-flash-preview')).toBe('gemini-3-flash-preview');
+  test('old Gemini settings move to DeepSeek; custom ids kept', () => {
+    expect(normalizeModel('gemini', 'gemini-1.5-flash')).toBe('deepseek-chat');
+    expect(normalizeModel('deepseek', '')).toBe('deepseek-chat');
+    expect(normalizeModel('deepseek', 'deepseek-reasoner')).toBe('deepseek-reasoner');
     expect(normalizeModel('openai', 'gemini-2.5-flash')).toBe('gpt-4o-mini');
+    expect(normalizeModel('openai', 'deepseek-chat')).toBe('gpt-4o-mini');
     expect(normalizeModel('openai', 'gpt-4.1')).toBe('gpt-4.1');
+  });
+
+  test('provider detection from key format', () => {
+    expect(detectProvider('sk-0123456789abcdef0123456789abcdef')).toBe('deepseek');
+    expect(detectProvider('sk-proj-abc')).toBe('openai');
+    expect(detectProvider('')).toBe('deepseek');
+  });
+
+  test('reasoner model: larger output, no temperature / json mode', async () => {
+    const calls = mockFetch(openaiText('# lesson'));
+    await generateLessonContentWithAI({ ...devopsCtx, apiKey: 'sk-k', provider: 'deepseek', model: 'deepseek-reasoner' });
+    expect(calls[0].body.max_tokens).toBe(32768);
+    expect(calls[0].body.temperature).toBeUndefined();
   });
 });

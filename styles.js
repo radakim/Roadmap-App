@@ -6,7 +6,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0a0f1d',
     // Dynamic Island clearance: 58px on modern iOS, or status bar height on Android
-    paddingTop: Platform.OS === 'ios' ? 58 : (RNStatusBar.currentHeight ? RNStatusBar.currentHeight + 8 : 36)
+    paddingTop: Platform.OS === 'ios' ? 58 : Platform.OS === 'web' ? 0 : (RNStatusBar.currentHeight ? RNStatusBar.currentHeight + 8 : 36)
   },
   rowBetween: {
     flexDirection: 'row',
@@ -489,7 +489,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 20,
     padding: 18,
-    maxHeight: '90%'
+    maxHeight: '90%',
+    // Dialogs stay readable on wide (desktop web) screens
+    width: '100%',
+    maxWidth: 640,
+    alignSelf: 'center'
   },
   inputLabel: {
     color: '#cbd5e1',
@@ -911,6 +915,118 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#1e293b',
     gap: 8
+  },
+
+  // ---------------- Desktop web layout (window >= 960px) ----------------
+  webRoot: {
+    flexDirection: 'row'
+  },
+  webMain: {
+    flex: 1,
+    minWidth: 0
+  },
+  webSidebar: {
+    width: 264,
+    backgroundColor: '#0c1322',
+    borderRightWidth: 1,
+    borderRightColor: '#1e293b'
+  },
+  webSidebarInner: {
+    flexGrow: 1,
+    paddingVertical: 20,
+    paddingHorizontal: 14
+  },
+  webBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 8,
+    marginBottom: 18
+  },
+  webBrandText: {
+    color: '#f8fafc',
+    fontSize: 17,
+    fontWeight: '800'
+  },
+  webRoadmapCard: {
+    backgroundColor: '#0f172a',
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    borderRadius: 14,
+    padding: 12
+  },
+  webSectionLabel: {
+    color: '#475569',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginTop: 20,
+    marginBottom: 6,
+    paddingHorizontal: 10
+  },
+  webNavItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    marginBottom: 2
+  },
+  webNavItemActive: {
+    backgroundColor: '#1e293b'
+  },
+  webNavIcon: {
+    fontSize: 16,
+    width: 22,
+    textAlign: 'center'
+  },
+  webNavLabel: {
+    color: '#94a3b8',
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1
+  },
+  webSidebarFooter: {
+    marginTop: 20,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#1e293b',
+    gap: 10
+  },
+  webContent: {
+    width: '100%',
+    maxWidth: 1240,
+    alignSelf: 'center',
+    paddingHorizontal: 32,
+    paddingTop: 28,
+    paddingBottom: 48
+  },
+  webScreenContent: {
+    width: '100%',
+    maxWidth: 980,
+    alignSelf: 'center',
+    paddingHorizontal: 32,
+    paddingTop: 24
+  },
+  webColumns: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 20
+  },
+  webCol: {
+    flex: 1,
+    minWidth: 0
+  },
+  webGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16
+  },
+  webGridItem: {
+    width: 'calc(50% - 8px)',
+    marginBottom: 0
   }
 });
 

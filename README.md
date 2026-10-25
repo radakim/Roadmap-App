@@ -46,6 +46,8 @@ Notes:
 * Data is saved in the browser's local storage, separately per browser/device.
   Use **Settings → Backup & Restore** to move roadmaps between phone and laptop.
 * Study reminders only fire while the app tab is open.
+* Windows wider than 960px get the desktop layout (sidebar navigation, two-column Focus/Settings,
+  card grids); narrower windows and phone browsers keep the mobile layout.
 
 ---
 
@@ -377,7 +379,7 @@ You do **not** need expensive recurring subscriptions. OpenAI uses pay-as-you-go
 
 ## 📁 Architecture & File Overview
 
-- [`aiService.js`](file:///Users/kimrada/Desktop/ProjectApp/Roadmap-App/aiService.js): Core multi-provider AI engine (Gemini & OpenAI) implementing the deep 4-part curriculum prompt, reference document grounding, and eNSP lab templates.
+- [`aiService.js`](file:///Users/kimrada/Desktop/ProjectApp/Roadmap-App/aiService.js): Core multi-provider AI engine (DeepSeek & OpenAI) implementing the deep 4-part curriculum prompt, reference document grounding, and eNSP lab templates.
 - [`App.js`](file:///Users/kimrada/Desktop/ProjectApp/Roadmap-App/App.js): Complete UI integration with DocumentPicker file importer, reference document hub, 4-part lesson reader, interactive eNSP lab view with troubleshooting cards, and Pomodoro timer task importer.
 - [`storage.js`](file:///Users/kimrada/Desktop/ProjectApp/Roadmap-App/storage.js): Added persistent `aiConfig` state for API keys and multi-provider selection.
 - [`README.md`](file:///Users/kimrada/Desktop/ProjectApp/Roadmap-App/README.md): Complete documentation for AI features, setup guides, and the 4-Part Daily Learning System.
@@ -395,7 +397,7 @@ You do **not** need expensive recurring subscriptions. OpenAI uses pay-as-you-go
 - **Journey Notes** have no length limit, keep auto-saving, show an informational character counter, offer **Copy All** (this day or all days), ask before clearing and offer **Undo Clear**.
 - **English / 简体中文** switch in Settings (saved). It translates the interface and is the default language for AI content.
 - **Data safety**: storage is split per roadmap and per day (only changed records are written), a failed load never overwrites saved data, the API key is kept in the device keychain/keystore and is never included in JSON backups, and importing a backup asks for confirmation. Existing data is migrated automatically; the previous `life_roadmaps_v2` value is left in place as a backup.
-- Retired Gemini 1.5 model IDs are migrated to `gemini-2.5-flash`; any model ID can be typed in AI settings.
+- AI provider is DeepSeek (`deepseek-chat` / `deepseek-reasoner`) or OpenAI; older Gemini settings migrate to DeepSeek automatically. Any model ID can be typed in AI settings.
 
 ### Tests
 ```bash

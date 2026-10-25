@@ -18,7 +18,7 @@ describe('i18n', () => {
   const sources = ['App.js', 'aiService.js', 'notifications.js'].map(read).join('\n');
   const used = keysUsedIn(sources);
   // Template-literal keys built at runtime
-  ['guide.gemini1Title', 'guide.gemini1Body', 'guide.gemini2Title', 'guide.gemini2Body',
+  ['guide.deepseek1Title', 'guide.deepseek1Body', 'guide.deepseek2Title', 'guide.deepseek2Body',
     'guide.openai1Title', 'guide.openai1Body', 'guide.openai2Title', 'guide.openai2Body',
     'level.Beginner', 'level.Intermediate', 'level.Advanced'].forEach((k) => used.add(k));
 

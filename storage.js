@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { buildHuaweiRoadmap, buildFullStackRoadmap, buildHabitsRoadmap } from './templates';
-import { normalizeModel, DEFAULT_AI_MODEL } from './aiService';
+import { normalizeModel, normalizeProvider, DEFAULT_AI_MODEL } from './aiService';
 import { detectDeviceLanguage, normalizeLanguage } from './i18n';
 
 // ------------------------------------------------------------
@@ -55,7 +55,7 @@ async function secureSet(value) {
 
 export function defaultAiConfig() {
   return {
-    provider: 'gemini',
+    provider: 'deepseek',
     apiKey: '',
     model: DEFAULT_AI_MODEL,
     temperature: 0.7
@@ -82,7 +82,7 @@ export function getInitialAppState() {
       isRunning: false,      // always paused on restore for safety
       activeTaskId: null     // id of the linked task, or null
     },
-    // AI Configuration (Google Gemini + OpenAI)
+    // AI Configuration (DeepSeek + OpenAI)
     aiConfig: defaultAiConfig(),
     // Interface + default AI content language ('en' | 'zh')
     settings: { language: detectDeviceLanguage() }
@@ -95,7 +95,8 @@ export function migrateState(parsed) {
   if (!state.aiConfig) {
     state.aiConfig = defaultAiConfig();
   } else {
-    const provider = state.aiConfig.provider || (state.aiConfig.apiKey?.startsWith('sk-') ? 'openai' : 'gemini');
+    // Gemini (older versions) is no longer offered: anything but OpenAI moves to DeepSeek
+    const provider = normalizeProvider(state.aiConfig.provider);
     state.aiConfig = { ...state.aiConfig, provider, model: normalizeModel(provider, state.aiConfig.model) };
   }
   state.settings = {

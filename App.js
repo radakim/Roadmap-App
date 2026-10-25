@@ -12,7 +12,8 @@ import {
   Vibration,
   ActivityIndicator,
   AppState,
-  BackHandler
+  BackHandler,
+  useWindowDimensions
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as DocumentPicker from 'expo-document-picker';
@@ -50,8 +51,11 @@ import {
   generateLessonContentWithAI,
   generatePracticeAndQuizWithAI,
   normalizeModel,
+  normalizeProvider,
+  detectProvider,
+  providerName,
   scheduleLabels,
-  GEMINI_MODELS,
+  DEEPSEEK_MODELS,
   OPENAI_MODELS,
   DEFAULT_AI_PROVIDER,
   DEFAULT_AI_MODEL,
@@ -76,6 +80,9 @@ const BINARY_FILE_EXT = /\.(docx?|pdf|pptx?|xlsx?|odt|rtf|pages|key|zip|png|jpe?
 export default function App() {
   // App state
   const [appData, setAppData] = useState(null);
+  // Desktop web layout: sidebar navigation + multi-column content
+  const { width: windowWidth } = useWindowDimensions();
+  const isWide = Platform.OS === 'web' && windowWidth >= 960;
   const [activeTab, setActiveTab] = useState('today'); // 'today' | 'roadmaps' | 'timeline' | 'settings'
   const [screen, setScreen] = useState('main'); // 'main' | 'lesson' | 'practice' | 'notes' (full-page screens)
   const [openPhaseId, setOpenPhaseId] = useState(null);
@@ -90,9 +97,9 @@ export default function App() {
   const [backupText, setBackupText] = useState('');
   const [reminderModal, setReminderModal] = useState(false);
 
-  // ================= AI Feature States (Gemini + ChatGPT) =================
+  // ================= AI Feature States (DeepSeek + ChatGPT) =================
   const [aiSettingsModal, setAiSettingsModal] = useState(false);
-  const [aiProviderDraft, setAiProviderDraft] = useState(DEFAULT_AI_PROVIDER); // 'gemini' | 'openai'
+  const [aiProviderDraft, setAiProviderDraft] = useState(DEFAULT_AI_PROVIDER); // 'deepseek' | 'openai'
   const [aiKeyDraft, setAiKeyDraft] = useState('');
   const [aiModelDraft, setAiModelDraft] = useState(DEFAULT_AI_MODEL);
   const [aiValidating, setAiValidating] = useState(false);
@@ -1071,9 +1078,9 @@ export default function App() {
     setAppData((prev) => ({ ...prev, settings: { ...(prev.settings || {}), language: code } }));
   };
 
-  // ================= AI HANDLERS (Gemini + OpenAI Integration) =================
+  // ================= AI HANDLERS (DeepSeek + OpenAI Integration) =================
   const getAiParams = () => {
-    const provider = appData?.aiConfig?.provider || 'gemini';
+    const provider = normalizeProvider(appData?.aiConfig?.provider);
     return {
       apiKey: appData?.aiConfig?.apiKey || '',
       provider,
@@ -1100,9 +1107,11 @@ export default function App() {
   };
 
   const openAISettings = () => {
-    const prov = appData?.aiConfig?.provider || 'gemini';
+    const prov = normalizeProvider(appData?.aiConfig?.provider);
+    const key = appData?.aiConfig?.apiKey || '';
     setAiProviderDraft(prov);
-    setAiKeyDraft(appData?.aiConfig?.apiKey || '');
+    // Google keys from the old Gemini integration do not work with DeepSeek
+    setAiKeyDraft(key.startsWith('AIzaSy') ? '' : key);
     setAiModelDraft(normalizeModel(prov, appData?.aiConfig?.model));
     setAiValidationStatus(null);
     setAiSettingsModal(true);
@@ -1119,13 +1128,13 @@ export default function App() {
       }
     }));
     setAiSettingsModal(false);
-    Alert.alert(t('aiSettings.savedTitle'), t('aiSettings.savedBody', { provider: aiProviderDraft === 'gemini' ? 'Google Gemini' : 'OpenAI' }));
+    Alert.alert(t('aiSettings.savedTitle'), t('aiSettings.savedBody', { provider: providerName(aiProviderDraft) }));
   };
 
   const handleTestApiKey = async () => {
-    const providerName = aiProviderDraft === 'gemini' ? 'Google Gemini' : 'OpenAI';
+    const provName = providerName(aiProviderDraft);
     if (!aiKeyDraft.trim()) {
-      Alert.alert(t('aiSettings.emptyKeyTitle'), t('aiSettings.emptyKeyBody', { provider: providerName }));
+      Alert.alert(t('aiSettings.emptyKeyTitle'), t('aiSettings.emptyKeyBody', { provider: provName }));
       return;
     }
     setAiValidating(true);
@@ -1133,7 +1142,7 @@ export default function App() {
     const result = await validateApiKey(aiKeyDraft.trim(), aiProviderDraft, lang);
     setAiValidating(false);
     if (result.valid) {
-      setAiValidationStatus({ valid: true, msg: t('aiSettings.keyValid', { provider: providerName }) });
+      setAiValidationStatus({ valid: true, msg: t('aiSettings.keyValid', { provider: provName }) });
     } else {
       setAiValidationStatus({ valid: false, msg: result.error || t('aiSettings.connFailed') });
     }
@@ -1666,11 +1675,117 @@ export default function App() {
     </View>
   );
 
+  // ================= WEB: DESKTOP SIDEBAR =================
+  const renderSidebar = () => {
+    const goTab = (id) => {
+      if (screen !== 'main') closeScreen();
+      if (id === 'settings') setSyncUrlDraft(appData.syncUrl || '');
+      setActiveTab(id);
+    };
+    const navItem = ({ key, icon, label, active, onPress }) => (
+      <TouchableOpacity
+        key={key}
+        style={[styles.webNavItem, active && styles.webNavItemActive]}
+        onPress={onPress}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: active }}
+      >
+        <Text style={styles.webNavIcon}>{icon}</Text>
+        <Text style={[styles.webNavLabel, active && { color: '#f8fafc' }]} numberOfLines={1}>{label}</Text>
+        {active && <View style={[styles.activeDot, { backgroundColor: accentColor, marginTop: 0 }]} />}
+      </TouchableOpacity>
+    );
+    const aiProvider = normalizeProvider(appData.aiConfig?.provider);
+    const hasKey = !!appData.aiConfig?.apiKey && !appData.aiConfig.apiKey.startsWith('AIzaSy');
+
+    return (
+      <View style={styles.webSidebar}>
+        <ScrollView contentContainerStyle={styles.webSidebarInner} showsVerticalScrollIndicator={false}>
+          <View style={styles.webBrand}>
+            <Text style={{ fontSize: 22 }}>🗺️</Text>
+            <Text style={styles.webBrandText}>{t('web.appName')}</Text>
+          </View>
+
+          {/* Active roadmap + progress */}
+          <TouchableOpacity style={[styles.webRoadmapCard, { borderColor: `${accentColor}44` }]} onPress={() => goTab('roadmaps')}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={[styles.roadmapIconBubble, { backgroundColor: `${accentColor}25` }]}>
+                <Text style={{ fontSize: 18 }}>{activeRoadmap.icon || '🎯'}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.roadmapHeaderTitle} numberOfLines={2}>{activeRoadmap.title}</Text>
+                <Text style={styles.roadmapHeaderSubtitle} numberOfLines={1}>
+                  {t('header.dayOf', { day: activeRoadmap.currentDay, total: activeRoadmap.totalDays })}
+                </Text>
+              </View>
+            </View>
+            <View style={[styles.progressBarTrack, { marginTop: 10 }]}>
+              <View style={[styles.progressBarThumb, { width: `${activeRoadmapPct}%`, backgroundColor: accentColor }]} />
+            </View>
+            <Text style={[styles.progressPctText, { color: accentColor, marginTop: 6 }]}>
+              {activeRoadmapDoneCount}/{activeRoadmap.totalDays} ({activeRoadmapPct}%)
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={styles.webSectionLabel}>{t('web.menu')}</Text>
+          {[
+            { id: 'today', icon: '⚡', label: t('tab.focus') },
+            { id: 'roadmaps', icon: '🗺️', label: t('tab.roadmaps') },
+            { id: 'timeline', icon: '📅', label: t('tab.timeline') },
+            { id: 'settings', icon: '⚙️', label: t('tab.settings') }
+          ].map((tab) => navItem({
+            key: tab.id,
+            icon: tab.icon,
+            label: tab.label,
+            active: screen === 'main' && activeTab === tab.id,
+            onPress: () => goTab(tab.id)
+          }))}
+
+          <Text style={styles.webSectionLabel}>{t('web.dayStudy', { day: currentDay })}</Text>
+          {navItem({ key: 'lesson', icon: '📖', label: t('today.lessonBtn'), active: screen === 'lesson', onPress: openLessonScreen })}
+          {navItem({ key: 'practice', icon: '🧪', label: t('today.practiceBtn'), active: screen === 'practice', onPress: openPracticeScreen })}
+          {navItem({ key: 'notes', icon: '📝', label: t('web.notes'), active: screen === 'notes', onPress: openNotesScreen })}
+
+          <View style={{ flex: 1 }} />
+
+          <View style={styles.webSidebarFooter}>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <TouchableOpacity
+                style={[styles.badgePill, reminderEnabled && { borderColor: `${accentColor}55`, backgroundColor: `${accentColor}15` }]}
+                onPress={() => setReminderModal(true)}
+              >
+                <Text style={{ fontSize: 12 }}>⏰</Text>
+                <Text style={[styles.badgePillText, reminderEnabled && { color: accentColor }]}>
+                  {reminderEnabled ? reminderTimeDraft : t('common.off')}
+                </Text>
+              </TouchableOpacity>
+              <View style={[styles.badgePill, styles.streakPill]}>
+                <Text style={{ fontSize: 12 }}>🔥</Text>
+                <Text style={styles.streakPillText}>
+                  {t('header.streakDays', { n: appData.streak ? appData.streak.count || 0 : 0 })}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={openAISettings}>
+              <Text style={{ color: hasKey ? '#34d399' : '#a78bfa', fontSize: 11, fontWeight: '700' }} numberOfLines={1}>
+                🤖 {hasKey
+                  ? `${providerName(aiProvider)} · ${normalizeModel(aiProvider, appData.aiConfig?.model)}`
+                  : t('web.aiSetup')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  };
+
   // ================= MAIN TABBED LAYOUT =================
   const renderMain = () => (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
 
       {/* ================= MODERN TOP BAR (CLEAN DYNAMIC ISLAND CLEARANCE) ================= */}
+      {/* Desktop web shows this information in the sidebar instead */}
+      {!isWide && (
       <View style={styles.topHeader}>
         {/* Top Row: Active Roadmap + Quick Badges */}
         <View style={styles.topHeaderRow}>
@@ -1737,11 +1852,12 @@ export default function App() {
           </View>
         </View>
       </View>
+      )}
 
       {/* ================= TAB CONTENT ================= */}
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 110 }}
+        contentContainerStyle={isWide ? styles.webContent : { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 110 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -1780,6 +1896,8 @@ export default function App() {
               </View>
             )}
 
+            <View style={isWide ? styles.webColumns : null}>
+            <View style={isWide ? styles.webCol : null}>
             {/* Hero Day Focus Card */}
             <View style={[styles.heroCard, { borderColor: `${accentColor}33` }]}>
               <View style={styles.rowBetween}>
@@ -1983,6 +2101,8 @@ export default function App() {
               </View>
             </View>
 
+            </View>
+            <View style={isWide ? styles.webCol : null}>
             {/* Daily Tasks Checklist */}
             <View style={styles.card}>
               <View style={styles.rowBetween}>
@@ -2127,6 +2247,8 @@ export default function App() {
                 </TouchableOpacity>
               </View>
             </View>
+            </View>
+            </View>
           </View>
         )}
 
@@ -2155,6 +2277,7 @@ export default function App() {
             </View>
 
             {/* List of Roadmaps */}
+            <View style={isWide ? styles.webGrid : null}>
             {appData.roadmaps.map((r) => {
               const isSelected = r.id === activeRoadmap.id;
               const doneCnt = r.doneDays ? r.doneDays.length : 0;
@@ -2167,7 +2290,8 @@ export default function App() {
                   key={r.id}
                   style={[
                     styles.roadmapCard,
-                    isSelected && { borderColor: rColor, borderWidth: 1.5 }
+                    isSelected && { borderColor: rColor, borderWidth: 1.5 },
+                    isWide && styles.webGridItem
                   ]}
                 >
                   <View style={styles.rowBetween}>
@@ -2245,6 +2369,7 @@ export default function App() {
                 </View>
               );
             })}
+            </View>
 
             {/* Ready-to-Use Templates */}
             <View style={{ marginTop: 24, marginBottom: 10 }}>
@@ -2252,8 +2377,9 @@ export default function App() {
               <Text style={styles.sub}>{t('templates.sub')}</Text>
             </View>
 
+            <View style={isWide ? styles.webGrid : null}>
             {TEMPLATE_LIST.map((tmpl) => (
-              <View key={tmpl.id} style={styles.templateCard}>
+              <View key={tmpl.id} style={[styles.templateCard, isWide && styles.webGridItem]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
                   <Text style={{ fontSize: 24 }}>{tmpl.icon}</Text>
                   <View style={{ flex: 1 }}>
@@ -2270,6 +2396,7 @@ export default function App() {
                 </TouchableOpacity>
               </View>
             ))}
+            </View>
           </View>
         )}
 
@@ -2432,6 +2559,8 @@ export default function App() {
               {t('settings.sub')}
             </Text>
 
+            <View style={isWide ? styles.webColumns : null}>
+            <View style={isWide ? styles.webCol : null}>
             {/* Language Card */}
             <View style={[styles.card, { borderColor: '#38bdf866', borderWidth: 1.5 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -2537,6 +2666,8 @@ export default function App() {
               </View>
             </View>
 
+            </View>
+            <View style={isWide ? styles.webCol : null}>
             {/* Offline & Account Info Card */}
             <View style={[styles.card, { borderColor: '#10b98133' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -2623,11 +2754,14 @@ export default function App() {
                 </TouchableOpacity>
               </View>
             </View>
+            </View>
+            </View>
           </View>
         )}
       </ScrollView>
 
       {/* ================= MODERN BOTTOM NAVIGATION (IPHONE HOME BAR SAFE) ================= */}
+      {!isWide && (
       <View style={styles.bottomNav}>
         {[
           { id: 'today', icon: '⚡', label: t('tab.focus') },
@@ -2651,6 +2785,7 @@ export default function App() {
           </TouchableOpacity>
         ))}
       </View>
+      )}
     </KeyboardAvoidingView>
   );
 
@@ -2700,7 +2835,7 @@ export default function App() {
         )}
       </View>
 
-      <ScrollView style={styles.screenScroll} contentContainerStyle={styles.screenScrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView style={styles.screenScroll} contentContainerStyle={[styles.screenScrollContent, isWide && styles.webScreenContent]} keyboardShouldPersistTaps="handled">
         {/* Generation options: custom instructions, language, reference documents */}
         <View style={styles.optionsPanel}>
           <TouchableOpacity style={styles.rowBetween} onPress={() => setShowLessonOptions(!showLessonOptions)}>
@@ -2837,7 +2972,7 @@ export default function App() {
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.screenScroll} contentContainerStyle={styles.screenScrollContent} keyboardShouldPersistTaps="handled">
+        <ScrollView style={styles.screenScroll} contentContainerStyle={[styles.screenScrollContent, isWide && styles.webScreenContent]} keyboardShouldPersistTaps="handled">
           <View style={styles.optionsPanel}>
             <TouchableOpacity style={styles.rowBetween} onPress={() => setShowPracticeOptions(!showPracticeOptions)}>
               <Text style={[styles.cardTitle, { fontSize: 13 }]}>⚙️ {t('gen.optionsTitle')}</Text>
@@ -3233,16 +3368,19 @@ export default function App() {
   const editingRoadmap = editingRoadmapId ? appData.roadmaps.find((r) => r.id === editingRoadmapId) : null;
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, isWide && styles.webRoot]}>
       <StatusBar style="light" />
 
-      {screen === 'lesson'
-        ? renderLessonScreen()
-        : screen === 'practice'
-        ? renderPracticeScreen()
-        : screen === 'notes'
-        ? renderNotesScreen()
-        : renderMain()}
+      {isWide && renderSidebar()}
+      <View style={isWide ? styles.webMain : { flex: 1 }}>
+        {screen === 'lesson'
+          ? renderLessonScreen()
+          : screen === 'practice'
+          ? renderPracticeScreen()
+          : screen === 'notes'
+          ? renderNotesScreen()
+          : renderMain()}
+      </View>
 
       {/* ================= MODAL: STUDY ALARM & NOTIFICATION PICKER ================= */}
       <Modal visible={reminderModal} transparent animationType="slide" onRequestClose={() => setReminderModal(false)}>
@@ -3971,7 +4109,7 @@ export default function App() {
         </View>
       </Modal>
 
-      {/* ================= MODAL: AI SETTINGS (GEMINI + OPENAI) ================= */}
+      {/* ================= MODAL: AI SETTINGS (DEEPSEEK + OPENAI) ================= */}
       <Modal visible={aiSettingsModal} transparent animationType="slide" onRequestClose={() => setAiSettingsModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBox, { maxHeight: '92%' }]}>
@@ -3993,16 +4131,16 @@ export default function App() {
               <TouchableOpacity
                 style={[
                   styles.providerTabBtn,
-                  aiProviderDraft === 'gemini' && { backgroundColor: '#3b82f6', borderColor: '#3b82f6' }
+                  aiProviderDraft === 'deepseek' && { backgroundColor: '#3b82f6', borderColor: '#3b82f6' }
                 ]}
                 onPress={() => {
-                  setAiProviderDraft('gemini');
-                  if (!aiModelDraft.startsWith('gemini')) setAiModelDraft(DEFAULT_AI_MODEL);
+                  setAiProviderDraft('deepseek');
+                  if (!aiModelDraft.startsWith('deepseek')) setAiModelDraft(DEFAULT_AI_MODEL);
                   setAiValidationStatus(null);
                 }}
               >
-                <Text style={{ color: aiProviderDraft === 'gemini' ? '#fff' : '#94a3b8', fontSize: 12, fontWeight: '700' }}>
-                  🌐 {t('aiSettings.gemini')}
+                <Text style={{ color: aiProviderDraft === 'deepseek' ? '#fff' : '#94a3b8', fontSize: 12, fontWeight: '700' }}>
+                  🐋 {t('aiSettings.deepseek')}
                 </Text>
               </TouchableOpacity>
 
@@ -4013,7 +4151,7 @@ export default function App() {
                 ]}
                 onPress={() => {
                   setAiProviderDraft('openai');
-                  if (aiModelDraft.startsWith('gemini')) setAiModelDraft(DEFAULT_OPENAI_MODEL);
+                  if (aiModelDraft.startsWith('deepseek')) setAiModelDraft(DEFAULT_OPENAI_MODEL);
                   setAiValidationStatus(null);
                 }}
               >
@@ -4025,7 +4163,7 @@ export default function App() {
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }} keyboardShouldPersistTaps="handled">
               <Text style={styles.inputLabel}>
-                {aiProviderDraft === 'gemini' ? t('aiSettings.geminiKeyLabel') : t('aiSettings.openaiKeyLabel')}
+                {aiProviderDraft === 'deepseek' ? t('aiSettings.deepseekKeyLabel') : t('aiSettings.openaiKeyLabel')}
               </Text>
               <TextInput
                 style={[styles.input, { fontFamily: MONO, fontSize: 13 }]}
@@ -4033,16 +4171,15 @@ export default function App() {
                 onChangeText={(val) => {
                   setAiKeyDraft(val);
                   setAiValidationStatus(null);
-                  if (val.trim().startsWith('sk-') && aiProviderDraft !== 'openai') {
-                    setAiProviderDraft('openai');
-                    setAiModelDraft(DEFAULT_OPENAI_MODEL);
-                  } else if (val.trim().startsWith('AIzaSy') && aiProviderDraft !== 'gemini') {
-                    setAiProviderDraft('gemini');
-                    setAiModelDraft(DEFAULT_AI_MODEL);
+                  // Only switch when the key format is unambiguous (both providers use sk-)
+                  const detected = val.trim().length > 30 ? detectProvider(val) : aiProviderDraft;
+                  if (detected !== aiProviderDraft) {
+                    setAiProviderDraft(detected);
+                    setAiModelDraft(detected === 'openai' ? DEFAULT_OPENAI_MODEL : DEFAULT_AI_MODEL);
                   }
                 }}
                 secureTextEntry={aiKeyDraft.length > 8}
-                placeholder={aiProviderDraft === 'gemini' ? 'AIzaSy...' : 'sk-proj-...'}
+                placeholder={aiProviderDraft === 'deepseek' ? 'sk-...' : 'sk-proj-...'}
                 placeholderTextColor="#64748b"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -4088,11 +4225,11 @@ export default function App() {
               )}
 
               <Text style={[styles.inputLabel, { marginTop: 14 }]}>
-                {aiProviderDraft === 'gemini' ? t('aiSettings.geminiModel') : t('aiSettings.openaiModel')}
+                {aiProviderDraft === 'deepseek' ? t('aiSettings.deepseekModel') : t('aiSettings.openaiModel')}
               </Text>
-              {(aiProviderDraft === 'gemini' ? GEMINI_MODELS : OPENAI_MODELS).map((m) => {
+              {(aiProviderDraft === 'deepseek' ? DEEPSEEK_MODELS : OPENAI_MODELS).map((m) => {
                 const isSelected = aiModelDraft === m.id;
-                const activeColor = aiProviderDraft === 'gemini' ? '#3b82f6' : '#8b5cf6';
+                const activeColor = aiProviderDraft === 'deepseek' ? '#3b82f6' : '#8b5cf6';
                 return (
                   <TouchableOpacity
                     key={m.id}
@@ -4124,7 +4261,7 @@ export default function App() {
                 onChangeText={(v) => setAiModelDraft(v.trim())}
                 autoCapitalize="none"
                 autoCorrect={false}
-                placeholder={aiProviderDraft === 'gemini' ? DEFAULT_AI_MODEL : DEFAULT_OPENAI_MODEL}
+                placeholder={aiProviderDraft === 'deepseek' ? DEFAULT_AI_MODEL : DEFAULT_OPENAI_MODEL}
                 placeholderTextColor="#64748b"
               />
 
@@ -4143,7 +4280,7 @@ export default function App() {
                 <Text style={styles.btnPrimaryText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.btnPrimary, { backgroundColor: aiProviderDraft === 'gemini' ? '#3b82f6' : '#8b5cf6' }]}
+                style={[styles.btnPrimary, { backgroundColor: aiProviderDraft === 'deepseek' ? '#3b82f6' : '#8b5cf6' }]}
                 onPress={handleSaveAISettings}
               >
                 <Text style={styles.btnPrimaryText}>{t('aiSettings.save')}</Text>
@@ -4172,7 +4309,7 @@ export default function App() {
 
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={[styles.cardTitle, { color: '#38bdf8', marginTop: 4, marginBottom: 8 }]}>
-                🌐 {t('guide.geminiTitle')}
+                🐋 {t('guide.deepseekTitle')}
               </Text>
               {[1, 2].map((n) => (
                 <View key={`g${n}`} style={styles.guideStepCard}>
@@ -4180,8 +4317,8 @@ export default function App() {
                     <Text style={styles.stepNumText}>{n}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.guideStepTitle}>{t(`guide.gemini${n}Title`)}</Text>
-                    <Text style={styles.guideStepDesc}>{t(`guide.gemini${n}Body`)}</Text>
+                    <Text style={styles.guideStepTitle}>{t(`guide.deepseek${n}Title`)}</Text>
+                    <Text style={styles.guideStepDesc}>{t(`guide.deepseek${n}Body`)}</Text>
                   </View>
                 </View>
               ))}

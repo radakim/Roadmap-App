@@ -8,7 +8,9 @@
     "android": "expo run:android",
     "prebuild": "expo prebuild --platform ios",
     "test": "jest",
+    "preweb": "node -e \"if (+process.versions.node.split('.')[0] < 20) { console.error('\\n  Node ' + process.version + ' is too old. Expo needs Node 20+.\\n  Run:  nvm use 22   (or once: nvm alias default 22)\\n'); process.exit(1); }\"",
     "web": "expo start --web",
+    "prebuild:web": "node -e \"if (+process.versions.node.split('.')[0] < 20) { console.error('\\n  Node ' + process.version + ' is too old. Expo needs Node 20+.\\n  Run:  nvm use 22   (or once: nvm alias default 22)\\n'); process.exit(1); }\"",
     "build:web": "expo export --platform web"
   },
   "dependencies": {

@@ -45,7 +45,8 @@ test('existing v2 data migrates without loss, v2 backup is kept, key moves to se
   expect(r.lessons[2].content).toBe('# Lesson 2');
   expect(r.globalReferenceDoc).toBe('global doc');
   expect(loaded.aiConfig.apiKey).toBe('AIzaSyOLDPLAINKEY');
-  expect(loaded.aiConfig.model).toBe('gemini-2.5-flash');
+  expect(loaded.aiConfig.provider).toBe('deepseek');
+  expect(loaded.aiConfig.model).toBe('deepseek-chat');
   expect(['en', 'zh']).toContain(loaded.settings.language);
 
   // Key now in secure storage and scrubbed from the v2 backup copy

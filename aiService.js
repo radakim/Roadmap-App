@@ -1,7 +1,7 @@
 // ============================================================
-// aiService.js - Multi-Provider AI Engine (Google Gemini + OpenAI)
+// aiService.js - Multi-Provider AI Engine (DeepSeek + OpenAI)
 // Supports:
-//   1. Google Gemini (Gemini 2.5 Flash - FREE Tier available via Google AI Studio)
+//   1. DeepSeek (DeepSeek-V3 chat / R1 reasoner - low-cost, OpenAI-compatible API)
 //   2. OpenAI (GPT-4o Mini, GPT-4o, GPT-4.1 Mini)
 // 3 Core Features:
 //   - AI Roadmap Generator (Creates full customized roadmaps of any length)
@@ -17,17 +17,16 @@ import { normalizeGeneratedPhases } from './schedule';
 // Optional default embedded API Key for distribution:
 // If you set a shared key here, all users who install your APK get working AI out-of-the-box!
 export const EMBEDDED_DEFAULT_KEY = '';
-export const EMBEDDED_DEFAULT_PROVIDER = 'gemini'; // 'gemini' | 'openai'
+export const EMBEDDED_DEFAULT_PROVIDER = 'deepseek'; // 'deepseek' | 'openai'
 
 export const PROVIDERS = [
-  { id: 'gemini', name: 'Google Gemini (Free Tier Available)', desc: 'Fast, powerful, and free on Google AI Studio' },
+  { id: 'deepseek', name: 'DeepSeek (Low Cost)', desc: 'Strong reasoning at a fraction of the price' },
   { id: 'openai', name: 'OpenAI (ChatGPT)', desc: 'Industry standard pay-as-you-go API credits' }
 ];
 
-export const GEMINI_MODELS = [
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Recommended: Fast & Free Tier)', cost: 'Free tier available' },
-  { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash-Lite (Fastest, Highest Free Quota)', cost: 'Free tier available' },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (Deep Reasoning & Analysis)', cost: 'Limited free tier' }
+export const DEEPSEEK_MODELS = [
+  { id: 'deepseek-chat', name: 'DeepSeek Chat (Recommended: Fast & Cheap)', cost: '~$0.28 / 1M input tokens' },
+  { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner (Deep Thinking, Longer Output)', cost: '~$0.28 / 1M input tokens, slower' }
 ];
 
 export const OPENAI_MODELS = [
@@ -36,29 +35,42 @@ export const OPENAI_MODELS = [
   { id: 'gpt-4o', name: 'GPT-4o (Most Intelligent & Deep)', cost: '~$2.50 / 1M tokens' }
 ];
 
-export const DEFAULT_AI_PROVIDER = 'gemini';
-export const DEFAULT_AI_MODEL = 'gemini-2.5-flash';
+export const DEFAULT_AI_PROVIDER = 'deepseek';
+export const DEFAULT_AI_MODEL = 'deepseek-chat';
 export const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
 
-// Google shut down the Gemini 1.x / 1.5 model IDs; requests to them return 404.
-const RETIRED_GEMINI_MODELS = /^gemini-(1\.0|1\.5|pro$|pro-vision)/;
+const PROVIDER_CONFIG = {
+  deepseek: { name: 'DeepSeek', base: 'https://api.deepseek.com', defaultModel: DEFAULT_AI_MODEL },
+  openai: { name: 'OpenAI', base: 'https://api.openai.com/v1', defaultModel: DEFAULT_OPENAI_MODEL }
+};
+
+export function providerName(provider) {
+  return (PROVIDER_CONFIG[provider] || PROVIDER_CONFIG.deepseek).name;
+}
+
+// Older versions used Google Gemini: any stored provider other than OpenAI becomes DeepSeek.
+export function normalizeProvider(provider) {
+  return provider === 'openai' ? 'openai' : 'deepseek';
+}
 
 export function normalizeModel(provider, model) {
   const m = (model || '').trim();
-  if (provider === 'openai') return m && !m.startsWith('gemini') ? m : DEFAULT_OPENAI_MODEL;
-  if (!m || !m.startsWith('gemini') || RETIRED_GEMINI_MODELS.test(m)) return DEFAULT_AI_MODEL;
-  return m;
+  if (normalizeProvider(provider) === 'openai') {
+    return m && !m.startsWith('gemini') && !m.startsWith('deepseek') ? m : DEFAULT_OPENAI_MODEL;
+  }
+  return m.startsWith('deepseek') ? m : DEFAULT_AI_MODEL;
 }
 
 /**
- * Auto-detect provider from API key prefix
+ * Auto-detect provider from API key format.
+ * DeepSeek keys are "sk-" + 32 hex chars; OpenAI project/service keys carry a prefix.
  */
 export function detectProvider(key) {
-  if (!key) return 'gemini';
-  const clean = key.trim();
-  if (clean.startsWith('sk-')) return 'openai';
-  if (clean.startsWith('AIzaSy')) return 'gemini';
-  return 'gemini';
+  const clean = (key || '').trim();
+  if (/^sk-(proj|svcacct|admin)-/.test(clean)) return 'openai';
+  if (/^sk-[a-f0-9]{32}$/i.test(clean)) return 'deepseek';
+  if (/^sk-[A-Za-z0-9]{40,}$/.test(clean)) return 'openai';
+  return 'deepseek';
 }
 
 const REQUEST_TIMEOUT_MS = 180000;
@@ -77,57 +89,35 @@ async function fetchWithTimeout(url, options, lang) {
 }
 
 /**
- * Validate an API key for Gemini or OpenAI
+ * Validate an API key for DeepSeek or OpenAI (both expose GET /models)
  */
-export async function validateApiKey(apiKey, provider = 'gemini', lang = 'en') {
+export async function validateApiKey(apiKey, provider = 'deepseek', lang = 'en') {
   const cleanKey = (apiKey || '').trim();
   if (!cleanKey) {
     return { valid: false, error: translate(lang, 'ai.err.enterKey') };
   }
 
-  const activeProvider = provider || detectProvider(cleanKey);
-
-  // Validate Google Gemini Key (key sent in a header, never in the URL)
-  if (activeProvider === 'gemini') {
-    try {
-      const res = await fetchWithTimeout('https://generativelanguage.googleapis.com/v1beta/models', {
-        headers: { 'x-goog-api-key': cleanKey }
-      }, lang);
-      if (res.ok) {
-        return { valid: true, provider: 'gemini' };
-      }
-      const data = await res.json().catch(() => ({}));
-      const msg = data.error?.message || translate(lang, 'ai.err.status', { provider: 'Google', status: res.status });
-      return { valid: false, error: msg };
-    } catch (e) {
-      return { valid: false, error: e.message || translate(lang, 'ai.err.network') };
+  const activeProvider = normalizeProvider(provider || detectProvider(cleanKey));
+  const cfg = PROVIDER_CONFIG[activeProvider];
+  try {
+    const res = await fetchWithTimeout(`${cfg.base}/models`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${cleanKey}` }
+    }, lang);
+    if (res.ok) {
+      return { valid: true, provider: activeProvider };
     }
-  }
-
-  // Validate OpenAI Key
-  if (activeProvider === 'openai') {
-    try {
-      const res = await fetchWithTimeout('https://api.openai.com/v1/models', {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${cleanKey}` }
-      }, lang);
-      if (res.ok) {
-        return { valid: true, provider: 'openai' };
-      }
-      if (res.status === 401) {
-        return { valid: false, error: translate(lang, 'ai.err.openaiInvalid') };
-      }
-      if (res.status === 429) {
-        return { valid: false, error: translate(lang, 'ai.err.openaiQuota') };
-      }
-      const data = await res.json().catch(() => ({}));
-      return { valid: false, error: data.error?.message || translate(lang, 'ai.err.status', { provider: 'OpenAI', status: res.status }) };
-    } catch (e) {
-      return { valid: false, error: e.message || translate(lang, 'ai.err.network') };
+    if (res.status === 401) {
+      return { valid: false, error: translate(lang, 'ai.err.invalidKey', { provider: cfg.name }) };
     }
+    if (res.status === 402 || res.status === 429) {
+      return { valid: false, error: translate(lang, 'ai.err.quota', { provider: cfg.name }) };
+    }
+    const data = await res.json().catch(() => ({}));
+    return { valid: false, error: data.error?.message || translate(lang, 'ai.err.status', { provider: cfg.name, status: res.status }) };
+  } catch (e) {
+    return { valid: false, error: e.message || translate(lang, 'ai.err.network') };
   }
-
-  return { valid: false, error: translate(lang, 'ai.err.unknownProvider') };
 }
 
 /**
@@ -159,92 +149,47 @@ export function cleanAndParseJSON(rawText, lang = 'en') {
 }
 
 /**
- * Universal caller that routes to Gemini or OpenAI.
+ * Universal caller for OpenAI-compatible chat APIs (DeepSeek, OpenAI).
  * Returns { text, truncated }.
  */
-async function callAI({ systemPrompt, userPrompt, apiKey, provider = 'gemini', model, jsonMode = false, lang = 'en' }) {
+async function callAI({ systemPrompt, userPrompt, apiKey, provider = 'deepseek', model, jsonMode = false, lang = 'en' }) {
   const activeKey = (apiKey && apiKey.trim()) || EMBEDDED_DEFAULT_KEY;
-  const activeProvider = provider || detectProvider(activeKey);
+  const activeProvider = normalizeProvider(provider || detectProvider(activeKey));
+  const cfg = PROVIDER_CONFIG[activeProvider];
+  const activeModel = normalizeModel(activeProvider, model);
+  const isReasoner = activeModel === 'deepseek-reasoner';
 
-  // 1. Google Gemini API
-  if (activeProvider === 'gemini') {
-    const activeModel = normalizeModel('gemini', model);
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent`;
+  const body = {
+    model: activeModel,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    // deepseek-chat caps output at 8K tokens; the reasoner allows far more
+    ...(activeProvider === 'deepseek' ? { max_tokens: isReasoner ? 32768 : 8192 } : {}),
+    ...(isReasoner ? {} : { temperature: 0.7 }),
+    ...(jsonMode && !isReasoner ? { response_format: { type: 'json_object' } } : {})
+  };
 
-    const body = {
-      system_instruction: {
-        parts: [{ text: systemPrompt }]
-      },
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: userPrompt }]
-        }
-      ],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 32768,
-        ...(jsonMode ? { responseMimeType: 'application/json' } : {})
-      }
-    };
+  const res = await fetchWithTimeout(`${cfg.base}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${activeKey}`
+    },
+    body: JSON.stringify(body)
+  }, lang);
 
-    const res = await fetchWithTimeout(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': activeKey },
-      body: JSON.stringify(body)
-    }, lang);
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error?.message || translate(lang, 'ai.err.status', { provider: 'Gemini', status: res.status }));
-    }
-
-    const data = await res.json();
-    const candidate = data.candidates?.[0];
-    const text = (candidate?.content?.parts || [])
-      .filter((p) => typeof p.text === 'string' && !p.thought)
-      .map((p) => p.text)
-      .join('');
-    if (!text) {
-      const reason = data.promptFeedback?.blockReason || candidate?.finishReason;
-      throw new Error(translate(lang, 'ai.err.noContent', { provider: 'Gemini', reason: reason || '-' }));
-    }
-    return { text, truncated: candidate?.finishReason === 'MAX_TOKENS' };
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || translate(lang, 'ai.err.status', { provider: cfg.name, status: res.status }));
   }
 
-  // 2. OpenAI API
-  if (activeProvider === 'openai') {
-    const activeModel = normalizeModel('openai', model);
-    const res = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${activeKey}`
-      },
-      body: JSON.stringify({
-        model: activeModel,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.7,
-        ...(jsonMode ? { response_format: { type: 'json_object' } } : {})
-      })
-    }, lang);
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error?.message || translate(lang, 'ai.err.status', { provider: 'OpenAI', status: res.status }));
-    }
-
-    const data = await res.json();
-    const choice = data.choices?.[0];
-    const text = choice?.message?.content;
-    if (!text) throw new Error(translate(lang, 'ai.err.noContent', { provider: 'OpenAI', reason: choice?.finish_reason || '-' }));
-    return { text, truncated: choice?.finish_reason === 'length' };
-  }
-
-  throw new Error(translate(lang, 'ai.err.unknownProvider'));
+  const data = await res.json();
+  const choice = data.choices?.[0];
+  const text = choice?.message?.content;
+  if (!text) throw new Error(translate(lang, 'ai.err.noContent', { provider: cfg.name, reason: choice?.finish_reason || '-' }));
+  return { text, truncated: choice?.finish_reason === 'length' };
 }
 
 // ============================================================
@@ -558,7 +503,7 @@ export async function generateRoadmapWithAI({
   language = 'en',
   durationUnit = 'days',
   apiKey,
-  provider = 'gemini',
+  provider = 'deepseek',
   model
 }) {
   if (!prompt || !prompt.trim()) {
@@ -638,7 +583,7 @@ export function scheduleLabels(lang) {
  * - Part 4 — Assessment and notes (~20 mins)
  */
 export async function generateLessonContentWithAI(params) {
-  const { day, topic, apiKey, provider = 'gemini', model, language = 'en' } = params;
+  const { day, topic, apiKey, provider = 'deepseek', model, language = 'en' } = params;
   if (!topic) throw new Error(translate(language, 'ai.err.noTopic'));
 
   const effectiveKey = (apiKey && apiKey.trim()) || EMBEDDED_DEFAULT_KEY;
@@ -681,7 +626,7 @@ export async function generateLessonContentWithAI(params) {
  * Generates structured Lab, Quiz, and Timer Tasks conforming to the 4-part system
  */
 export async function generatePracticeAndQuizWithAI(params) {
-  const { day, topic, apiKey, provider = 'gemini', model, language = 'en' } = params;
+  const { day, topic, apiKey, provider = 'deepseek', model, language = 'en' } = params;
   if (!topic) throw new Error(translate(language, 'ai.err.noTopic'));
 
   const effectiveKey = (apiKey && apiKey.trim()) || EMBEDDED_DEFAULT_KEY;
