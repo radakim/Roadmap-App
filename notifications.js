@@ -5,6 +5,14 @@
 
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { translate } from './i18n';
+
+// Notification text follows the app language (set from App.js)
+let notifLang = 'en';
+export function setNotificationLanguage(lang) {
+  notifLang = lang || 'en';
+}
+const tn = (key, params) => translate(notifLang, key, params);
 
 // Set how foreground notifications are shown
 Notifications.setNotificationHandler({
@@ -30,7 +38,7 @@ export async function requestNotificationPermission() {
     // Android: create a notification channel
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('study-alarm', {
-        name: 'Daily Study Alarm',
+        name: tn('notif.channelAlarm'),
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 500, 200, 500],
         lightColor: '#10b981',
@@ -40,7 +48,7 @@ export async function requestNotificationPermission() {
       });
 
       await Notifications.setNotificationChannelAsync('timer-complete', {
-        name: 'Focus Timer',
+        name: tn('notif.channelTimer'),
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 300, 150, 300],
         lightColor: '#10b981',
@@ -74,8 +82,8 @@ export async function scheduleDailyStudyReminder(
     await Notifications.scheduleNotificationAsync({
       identifier: 'daily-study-alarm',
       content: {
-        title: '⏰ Daily Study Time!',
-        body: `Time to focus on "${roadmapTitle}" — Day ${day}. Let's crush it! 🚀`,
+        title: tn('notif.dailyTitle'),
+        body: tn('notif.dailyBody', { roadmap: roadmapTitle, day }),
         sound: 'default',
         data: { type: 'daily-alarm', day },
         ...(Platform.OS === 'android' && { channelId: 'study-alarm' }),
@@ -110,10 +118,10 @@ export async function sendTimerCompleteNotification(modeLabel = 'Focus', taskTit
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: '🎉 Session Complete!',
+        title: tn('notif.sessionTitle'),
         body: taskTitle
-          ? `"${taskTitle}" focus session finished. Take a short break!`
-          : `${modeLabel.toUpperCase()} session done! Great work — take a 5-min break.`,
+          ? tn('notif.sessionTaskBody', { task: taskTitle })
+          : tn('notif.sessionModeBody', { mode: modeLabel.toUpperCase() }),
         sound: 'default',
         data: { type: 'timer-complete' },
         ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
@@ -130,8 +138,8 @@ export async function sendTaskStartNotification(taskTitle, minutes) {
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: '▶ Focus Session Started',
-        body: `${minutes} min timer running for: "${taskTitle}"`,
+        title: tn('notif.startTitle'),
+        body: tn('notif.startBody', { minutes, task: taskTitle }),
         sound: null,
         data: { type: 'task-start' },
         ...(Platform.OS === 'android' && { channelId: 'timer-complete' }),
@@ -148,8 +156,8 @@ export async function sendTestAlarmNotification(timeStr = '20:00') {
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: '🔔 Test Alarm!',
-        body: `This is how your daily study alarm looks at ${timeStr}. You're all set! ✅`,
+        title: tn('notif.testTitle'),
+        body: tn('notif.testBody', { time: timeStr }),
         sound: 'default',
         data: { type: 'test-alarm' },
         ...(Platform.OS === 'android' && { channelId: 'study-alarm' }),

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Life Roadmap — Daily & Study Planner",
+    "name": "AI Roadmap",
     "slug": "huawei-roadmap",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -46,7 +46,8 @@
           "androidMode": "default",
           "androidCollapsedTitle": "Life Roadmap"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {

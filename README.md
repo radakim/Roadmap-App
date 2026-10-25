@@ -362,3 +362,26 @@ You do **not** need expensive recurring subscriptions. OpenAI uses pay-as-you-go
 - [`storage.js`](file:///Users/kimrada/Desktop/ProjectApp/Roadmap-App/storage.js): Added persistent `aiConfig` state for API keys and multi-provider selection.
 - [`README.md`](file:///Users/kimrada/Desktop/ProjectApp/Roadmap-App/README.md): Complete documentation for AI features, setup guides, and the 4-Part Daily Learning System.
 
+
+---
+
+## 🆕 Update: Any-Subject AI, Durations, Full-Page Lessons, Unlimited Notes & 中文
+
+### What changed
+- **AI generation matches the selected roadmap, phase and day** for any subject (DevOps, networking, programming, fitness, languages...). Huawei VRP / eNSP guidance is only used when the roadmap or topic is Huawei/HCIA, and never forced into non-networking days (e.g. the Python month).
+- **Generation options** on the Lesson and Practice pages: custom instructions, content language (app default / English / 简体中文) and reference documents. Documents are treated as supporting material only — they never change the roadmap, phase or day topic.
+- **Roadmap duration**: the AI Roadmap Generator accepts any number of **days or weeks** (1–1000 days) and the result always has exactly that many days. Existing roadmaps can be resized from **Roadmaps → ✎ Edit / Duration** (or **Timeline → 📏 Duration**). A preview is shown before anything changes; completed days, lessons, practice and notes are kept, and nothing is deleted when shortening (merged or archived instead). You cannot shorten below your completed progress.
+- **Lesson and Practice & Quiz are full-page screens** with complete scrolling for long content, **Copy** and **Export DOCX** (Word file via the share sheet). Document upload lives under *Generation options*.
+- **Journey Notes** have no length limit, keep auto-saving, show an informational character counter, offer **Copy All** (this day or all days), ask before clearing and offer **Undo Clear**.
+- **English / 简体中文** switch in Settings (saved). It translates the interface and is the default language for AI content.
+- **Data safety**: storage is split per roadmap and per day (only changed records are written), a failed load never overwrites saved data, the API key is kept in the device keychain/keystore and is never included in JSON backups, and importing a backup asks for confirmation. Existing data is migrated automatically; the previous `life_roadmaps_v2` value is left in place as a backup.
+- Retired Gemini 1.5 model IDs are migrated to `gemini-2.5-flash`; any model ID can be typed in AI settings.
+
+### Tests
+```bash
+npm test            # 67 Jest tests: AI prompts, schedule changes, DOCX, storage, i18n, UI flows
+```
+
+### Building
+- The Expo SDK 54 CLI needs **Node 20+** (`nvm use 22`).
+- New native modules were added: `expo-clipboard`, `expo-sharing`, `expo-secure-store`. Expo Go already includes them. For the standalone iOS/Android app, regenerate the native project and rebuild (`npx expo prebuild --platform ios` then `npx expo run:ios`, or an EAS build).
